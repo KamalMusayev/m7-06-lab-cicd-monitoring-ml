@@ -1,0 +1,92 @@
+groups:
+  - name: vision-moderation-alerts
+    rules:
+      - alert: AvailabilityBurnFast
+        expr: |
+          (
+            sum(rate(http_requests_total{job="vision-moderation",code=~"5.."}[1h]))
+            /
+            sum(rate(http_requests_total{job="vision-moderation"}[1h]))
+          ) > (14.4 * (1 - 0.995))
+        for: 5m
+        labels:
+          severity: page
+          service: vision-moderation
+          slo: availability
+          window: 1h
+          threshold: "14.4x burn rate"
+        annotations:
+          summary: "Availability error budget is burning too fast"
+          description: "More than 2% of the monthly availability error budget is being consumed within 1 hour."
+          runbook: "https://runbooks.example.com/vision-moderation/availability-burn"
+
+      - alert: AvailabilityBurnSlow
+        expr: |
+          (
+            sum(rate(http_requests_total{job="vision-moderation",code=~"5.."}[24h]))
+            /
+            sum(rate(http_requests_total{job="vision-moderation"}[24h]))
+          ) > (3 * (1 - 0.995))
+        for: 30m
+        labels:
+          severity: ticket
+          service: vision-moderation
+          slo: availability
+          window: 24h
+          threshold: "3x burn rate"
+        annotations:
+          summary: "Availability error budget is burning steadily"
+          description: "Around 10% of the monthly availability error budget is being consumed within 24 hours."
+          runbook: "https://runbooks.example.com/vision-moderation/availability-burn"
+
+      - alert: LatencyP99High
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="vision-moderation"}[5m])) by (le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: page
+          service: vision-moderation
+          slo: latency_p99
+          window: 5m
+          threshold: "p99 > 1s"
+        annotations:
+          summary: "p99 latency is above 1 second"
+          description: "The p99 end-to-end request latency has been above 1 second for 5 minutes."
+          runbook: "https://runbooks.example.com/vision-moderation/latency-p99-high"
+
+      - alert: DriftDetected
+        expr: |
+          max by (feature) (
+            model_input_psi{job="vision-moderation",feature_type="major"}
+          ) > 0.2
+        for: 1h
+        labels:
+          severity: ticket
+          service: vision-moderation
+          slo: model_quality
+          window: 1h
+          threshold: "PSI > 0.2"
+        annotations:
+          summary: "Input feature drift detected"
+          description: "At least one major input feature has PSI greater than 0.2 for 1 hour."
+          runbook: "https://runbooks.example.com/vision-moderation/drift-detected"
+
+      - alert: ModelVersionMismatch
+        expr: |
+          sum(
+            model_version_mismatch{job="vision-moderation"} == 1
+          ) > 0
+        for: 5m
+        labels:
+          severity: page
+          service: vision-moderation
+          slo: deployment_correctness
+          window: 5m
+          threshold: "mismatch count > 0"
+        annotations:
+          summary: "At least one replica is serving the wrong model version"
+          description: "A replica is serving a model_version that does not match the expected version in the registry."
+          runbook: "https://runbooks.example.com/vision-moderation/model-version-mismatch"
